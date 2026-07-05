@@ -1,0 +1,33 @@
+{
+  "name": "teamlore",
+  "version": "0.0.1",
+  "description": "Shared memory for your team's AI agents. Ten Claudes, one lore. v0.1 landing soon.",
+  "bin": {
+    "teamlore": "bin/teamlore.js"
+  },
+  "files": [
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "claude",
+    "claude-code",
+    "mcp",
+    "ai-agents",
+    "memory",
+    "team-memory",
+    "tribal-knowledge",
+    "skill"
+  ],
+  "author": "Lakshay Gupta (https://github.com/lak7)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lak7/teamlore.git"
+  },
+  "homepage": "https://github.com/lak7/teamlore#readme",
+  "engines": {
+    "node": ">=18"
+  }
+}
