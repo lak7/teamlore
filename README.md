@@ -4,7 +4,7 @@
 
 On a team of N developers, each person's coding agent learns the project's hard
 lessons *alone* — the migration that nukes staging, the webhook that must be
-idempotent, the internal API that lies. When Priya's Claude makes a mistake on
+idempotent, the internal API that lies. When Billy's Claude makes a mistake on
 Monday and she corrects it, nothing stops your Claude from making the identical
 mistake on Tuesday.
 
@@ -67,7 +67,7 @@ your-repo/
 ---
 paths: [src/payments/**]        # glob(s) that make this lore relevant
 kind: mistake                   # mistake | gotcha | decision
-by: priya                       # git user who learned it
+by: Billy                       # git user who learned it
 commit: abc123                  # short HEAD when learned (anchors staleness)
 verify_by: 2026-10-01           # soft expiry (~+90 days)
 ---
@@ -90,20 +90,25 @@ never commits — the human always merges.
 
 ## The canonical scenario
 
-**Monday** — Priya's Claude botches a Stripe webhook handler, causing double
+**Monday** — Billy's Claude botches a Stripe webhook handler, causing double
 refunds. She corrects it; a lore file rides her fix PR. **Tuesday** — your Claude
-opens `src/payments/`, recall injects Priya's entry, and your agent avoids the
+opens `src/payments/`, recall injects Billy's entry, and your agent avoids the
 in-memory dedupe approach, citing her incident. *Your team already learned this.*
 
 ## Uninstall
 
 ```bash
-rm -rf .lore .claude/skills/teamlore
+npx teamlore remove
 ```
 
-Then remove teamlore's three hook blocks from `.claude/settings.json` (the ones
-whose command contains `skills/teamlore/scripts`), and drop the `.loreignore` file
-if you don't want it.
+This deletes the skill and unwires the three hooks from `.claude/settings.json`
+(leaving any other hooks and settings untouched) — but **keeps your `.lore/`
+folder**, since it holds your team's real, committed memories. To delete
+everything including the lore and `.loreignore`:
+
+```bash
+npx teamlore remove --purge
+```
 
 ## Requirements & compatibility
 

@@ -61,7 +61,7 @@ rare and meaningful).
 ---
 paths: [src/payments/**]        # glob(s) that make this lore relevant
 kind: mistake                   # mistake | gotcha | decision
-by: priya                       # git user who learned it
+by: Billy                       # git user who learned it
 commit: abc123                  # short HEAD when learned (anchors staleness)
 verify_by: 2026-10-01           # soft expiry (~+90 days)
 ---

@@ -1,6 +1,12 @@
 #!/usr/bin/env node
 'use strict';
 
+// Exit quietly if output is piped into a reader that closes early (head, less …).
+process.stdout.on('error', (err) => {
+  if (err && err.code === 'EPIPE') process.exit(0);
+  throw err;
+});
+
 const cmd = process.argv[2];
 
 function version() {
@@ -11,21 +17,38 @@ function version() {
   }
 }
 
-const USAGE = `teamlore — shared memory for your team's AI agents
+function help() {
+  const ui = require('../lib/ui');
+  const { bold, dim, cyan, amber, symbols, padEnd } = ui;
+  const line = (s) => process.stdout.write(s + '\n');
+  const cmdRow = (name, desc) => line('    ' + cyan(padEnd(name, 25)) + dim(desc));
 
-Usage:
-  npx teamlore init        Install the skill, hooks, and .lore/ folder in this repo
-  npx teamlore --help      Show this help
-  npx teamlore --version   Show the version
-
-After \`init\`, review the changes and commit them. Teammates get teamlore on
-their next \`git pull\`. Docs: https://github.com/lak7/teamlore`;
+  line(ui.banner(version()));
+  line('  ' + bold('Usage'));
+  cmdRow('npx teamlore init', 'Install the skill, hooks & .lore/ in this repo');
+  cmdRow('npx teamlore remove', 'Uninstall (keeps .lore/; --purge deletes it too)');
+  cmdRow('npx teamlore --help', 'Show this help');
+  cmdRow('npx teamlore --version', 'Print the version');
+  line('');
+  line('  ' + dim('After ') + cyan('init') + dim(', review the changes and commit them.'));
+  line('  ' + dim('Teammates get teamlore on their next ') + cyan('git pull') + dim('.'));
+  line('');
+  line('  ' + symbols.spark + '  ' + dim('https://github.com/lak7/teamlore'));
+  line('');
+}
 
 function main() {
   switch (cmd) {
     case 'init': {
       const { run } = require('../lib/init');
       process.exitCode = run(process.cwd());
+      return;
+    }
+    case 'remove':
+    case 'uninstall': {
+      const { run } = require('../lib/remove');
+      const purge = process.argv.slice(3).some((a) => a === '--purge');
+      process.exitCode = run(process.cwd(), { purge });
       return;
     }
     case '-v':
@@ -35,11 +58,11 @@ function main() {
     case undefined:
     case '-h':
     case '--help':
-      console.log(USAGE);
+      help();
       return;
     default:
-      console.error(`Unknown command: ${cmd}\n`);
-      console.error(USAGE);
+      console.error('Unknown command: ' + cmd);
+      help();
       process.exitCode = 1;
   }
 }
