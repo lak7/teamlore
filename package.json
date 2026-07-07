@@ -1,12 +1,14 @@
 {
   "name": "teamlore",
-  "version": "0.0.1",
-  "description": "Shared memory for your team's AI agents. Ten Claudes, one lore. v0.1 landing soon.",
+  "version": "0.1.0",
+  "description": "Shared memory for your team's AI agents. Ten Claudes, one lore.",
   "bin": {
     "teamlore": "bin/teamlore.js"
   },
   "files": [
     "bin",
+    "lib",
+    "templates",
     "README.md",
     "LICENSE"
   ],
