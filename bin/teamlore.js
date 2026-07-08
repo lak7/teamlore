@@ -37,34 +37,74 @@ function help() {
   line('');
 }
 
-function main() {
+function commandName() {
   switch (cmd) {
-    case 'init': {
-      const { run } = require('../lib/init');
-      process.exitCode = run(process.cwd());
-      return;
-    }
+    case 'init':
     case 'remove':
-    case 'uninstall': {
-      const { run } = require('../lib/remove');
-      const purge = process.argv.slice(3).some((a) => a === '--purge');
-      process.exitCode = run(process.cwd(), { purge });
-      return;
-    }
+    case 'uninstall':
+      return cmd;
     case '-v':
     case '--version':
-      console.log(version());
-      return;
+      return 'version';
     case undefined:
     case '-h':
     case '--help':
-      help();
-      return;
+      return 'help';
     default:
-      console.error('Unknown command: ' + cmd);
-      help();
-      process.exitCode = 1;
+      return 'unknown';
   }
 }
 
-main();
+async function main() {
+  const started = Date.now();
+  const command = commandName();
+  const fields = { command };
+  let threw = false;
+
+  try {
+    switch (cmd) {
+      case 'init': {
+        const { run } = require('../lib/init');
+        process.exitCode = run(process.cwd());
+        return;
+      }
+      case 'remove':
+      case 'uninstall': {
+        const { run } = require('../lib/remove');
+        const purge = process.argv.slice(3).some((a) => a === '--purge');
+        fields.purge = purge;
+        process.exitCode = run(process.cwd(), { purge });
+        return;
+      }
+      case '-v':
+      case '--version':
+        console.log(version());
+        return;
+      case undefined:
+      case '-h':
+      case '--help':
+        help();
+        return;
+      default:
+        console.error('Unknown command: ' + cmd);
+        help();
+        process.exitCode = 1;
+    }
+  } catch (err) {
+    threw = true;
+    throw err;
+  } finally {
+    const { sendTelemetry } = require('../lib/telemetry');
+    await sendTelemetry({
+      ...fields,
+      outcome: threw || (process.exitCode && process.exitCode !== 0) ? 'failure' : 'success',
+      durationMs: Date.now() - started,
+    });
+  }
+}
+
+main().catch((err) => {
+  setImmediate(() => {
+    throw err;
+  });
+});

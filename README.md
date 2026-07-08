@@ -117,6 +117,26 @@ npx teamlore remove --purge
 - Hook scripts are plain Node (no bash/jq dependency), so they run on macOS,
   Linux, and Windows.
 
+## Telemetry
+
+teamlore collects minimal anonymous CLI usage telemetry: command name, outcome,
+duration, package version, Node version, platform, architecture, and a random
+anonymous ID stored on your machine. It does not collect project content, prompts,
+file paths, repo names, git remotes, usernames, hostnames, environment variables,
+or stack traces.
+
+Disable telemetry with either:
+
+```bash
+TEAMLORE_TELEMETRY_DISABLED=1 npx teamlore init
+```
+
+or:
+
+```bash
+DO_NOT_TRACK=1 npx teamlore init
+```
+
 ## Status
 
 v0.1 — the skill-and-folder release. Path-scoped grep recall (no server, no
