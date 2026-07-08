@@ -1,19 +1,35 @@
-# teamlore
+# teamlore 🧠
 
-**Shared memory for your team's AI agents.** Ten Claudes, one lore.
+**Break things only once.**
 
-On a team of N developers, each person's coding agent learns the project's hard
-lessons *alone* — the migration that nukes staging, the webhook that must be
-idempotent, the internal API that lies. When Billy's Claude makes a mistake on
-Monday and she corrects it, nothing stops your Claude from making the identical
-mistake on Tuesday.
+Shared memory for your team's Claude Code. One dev's agent learns
+a lesson — every teammate's agent remembers it. No server, no
+accounts. The brain is a `.lore/` folder in git. Onboarding is
+`git pull`.
 
-teamlore fixes that with **no server**. It's a Claude Code skill plus a `.lore/`
-folder in git. Each developer's agent distills its sessions into small,
-reviewable "lore" files; every teammate's agent recalls them automatically.
-Onboarding a teammate is `git pull`.
+```bash
+npx teamlore init
+```
 
-> **Break things only once.**
+## Your team already learned this
+
+Monday: Billy's Claude causes double refunds. She fixes it.
+Tuesday: your Claude opens the same file — and almost does it again.
+The lesson existed. It was trapped in her session history.
+
+teamlore ends that. One agent distills the lesson into a small lore
+file. Every teammate's agent recalls it. When it stops a repeat, the
+terminal says so:
+
+```
+⚡ teamlore — your team already learned this.
+
+   billy · 3 days ago · mistake · src/payments/**
+   "Stripe webhook retries caused double refunds (#412).
+    In-memory dedupe fails across pods. Use processed_events."
+
+   break things only once.
+```
 
 ## Install
 
@@ -24,44 +40,28 @@ npx teamlore init
 git add -A && git commit -m "Add teamlore"
 ```
 
-Teammates get it on their next `git pull` — Claude Code picks up the committed
-skill and hooks automatically.
+Teammates get the brain on their next `git pull`. Claude Code picks
+up the committed skill and hooks automatically.
 
-`init` is idempotent: safe to re-run, and it never clobbers existing hooks or
-settings.
-
-## What it installs
-
-```
-your-repo/
-├── .claude/
-│   ├── skills/teamlore/
-│   │   ├── SKILL.md              # when to recall, what counts as lore, format rules
-│   │   └── scripts/
-│   │       ├── recall.js         # path-scoped retrieval (frontmatter match)
-│   │       ├── distill-check.js  # Stop-hook capture gate
-│   │       └── distill.md        # the distillation checklist
-│   └── settings.json             # SessionStart + UserPromptSubmit + Stop hooks (safely merged)
-├── .lore/                        # the brain — one memory per file
-│   └── README.md
-└── .loreignore                   # paths that never generate lore (secrets, vendor, …)
-```
+`init` is idempotent. Safe to re-run. It never clobbers existing
+hooks or settings.
 
 ## How it works
 
-- **Recall (read).** A `SessionStart` hook injects a digest of lore relevant to
-  your recent git activity; a `UserPromptSubmit` hook re-checks your evolving
-  working set (and any path you mention) each turn, injecting newly-relevant lore
-  once. Injection is capped at ~800 tokens (≤5 entries), path-scoped — never a
-  full dump, and deduped so nothing repeats within a session. Zero matches inject
-  nothing (no empty-state noise).
-- **Distill (write).** The `teamlore` skill proposes lore when you correct the
-  agent, a command/test/deploy breaks unpredictably, or a decision is made with a
-  stated reason. A `Stop` hook is a deterministic safety net: it nudges for
-  capture only when a trigger fired and nothing was staged, so trivial sessions
-  cost nothing.
+**Distill.** Your agent turns hard lessons into tiny lore files —
+when you correct it, when a command breaks unpredictably, or when a
+decision is made with a stated reason.
 
-### The lore contract
+**Recall.** Teammates' agents load matching lore automatically. Path-scoped,
+~800 tokens, max 5 entries. Never a full dump. Zero matches inject nothing —
+silence is a feature.
+
+**Review.** Lore rides the PR. Humans merge. Nothing enters the brain
+unreviewed.
+
+## The lore contract
+
+One lore. One file. ≤120 words. Reviewed like code.
 
 ```markdown
 ---
@@ -76,24 +76,21 @@ Stripe webhook handler must be idempotent — retries caused double refunds
 table instead.
 ```
 
-- Filename `YYYY-MM-DD-slug.md`, one memory per file (merge conflicts stay rare).
-- Body ≤ 120 words, plain prose, states the lesson and the failed approach.
-- `paths` scopes recall — keep globs tight.
+- Filename `YYYY-MM-DD-slug.md`. One memory per file. Merge conflicts stay rare.
+- `paths` scopes recall. Keep globs tight.
 
 ## Lore is code — review it
 
 Lore is **proposed by an agent** and **merged by a human**, in a PR, exactly like
 code. Nothing enters the shared brain without review. That review is the trust and
-security boundary: it's what stops a bad or **poisoned** instruction from becoming
+security boundary. It's what stops a bad or **poisoned** instruction from becoming
 something every teammate's agent obeys. The skill stages lore with `git add` and
-never commits — the human always merges.
+never commits. The human always merges.
 
-## The canonical scenario
+## Our own brain
 
-**Monday** — Billy's Claude botches a Stripe webhook handler, causing double
-refunds. She corrects it; a lore file rides her fix PR. **Tuesday** — your Claude
-opens `src/payments/`, recall injects Billy's entry, and your agent avoids the
-in-memory dedupe approach, citing her incident. *Your team already learned this.*
+teamlore keeps its own `.lore/`. Every mistake Claude made building this
+tool, as reviewable git history. Read it in the repo.
 
 ## Uninstall
 
@@ -102,9 +99,9 @@ npx teamlore remove
 ```
 
 This deletes the skill and unwires the three hooks from `.claude/settings.json`
-(leaving any other hooks and settings untouched) — but **keeps your `.lore/`
-folder**, since it holds your team's real, committed memories. To delete
-everything including the lore and `.loreignore`:
+(leaving any other hooks and settings untouched). It **keeps your `.lore/`
+folder** — it holds your team's real, committed memories. To delete everything
+including the lore and `.loreignore`:
 
 ```bash
 npx teamlore remove --purge
@@ -114,7 +111,7 @@ npx teamlore remove --purge
 
 - **Node ≥ 18** (already required to run `npx teamlore`).
 - **Claude Code** with skills + hooks support.
-- Hook scripts are plain Node (no bash/jq dependency), so they run on macOS,
+- Hook scripts are plain Node (no bash/jq dependency). They run on macOS,
   Linux, and Windows.
 
 ## Telemetry
@@ -139,11 +136,15 @@ DO_NOT_TRACK=1 npx teamlore init
 
 ## Status
 
-v0.1 — the skill-and-folder release. Path-scoped grep recall (no server, no
-embeddings). Planned fast-follows: `teamlore stale`, `teamlore stats` (the
-"dodges" receipts), and cross-agent adapters (Cursor / Codex reading the same
-`.lore/`).
+v0.2 — the skill-and-folder release. Path-scoped grep recall. No server,
+no embeddings. Planned fast-follows: `teamlore stale`, `teamlore stats`
+(the "dodges" receipts), and cross-agent adapters. Built for Claude Code.
+Cursor & Codex next.
 
 ## License
 
 MIT
+
+---
+
+**Break things only once.**

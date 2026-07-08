@@ -11,7 +11,7 @@ description: >-
   hard-won lesson stops every other teammate's agent from repeating it.
 ---
 
-# teamlore — shared memory for the team's agents
+# teamlore — shared memory for your team's Claude Code
 
 `.lore/` holds small, reviewable memories — one lesson per file — that ride into
 the repo on normal PRs. Recall is injected automatically by hooks as

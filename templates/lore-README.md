@@ -1,13 +1,15 @@
-# .lore/ — your team's shared agent memory
+# .lore/ — the brain
 
-This folder is the team's brain. Each file is **one memory**: a mistake, a
-gotcha, or a decision your agents learned the hard way. When any teammate's
-Claude Code session touches a relevant file, the matching lore is injected
-automatically as `TEAMLORE RECALL:` context — so nobody's agent repeats a lesson
-another agent already learned.
+This folder is your team's brain. Each file is **one lore**: a mistake, a gotcha,
+or a decision your agents learned the hard way. When any teammate's Claude Code
+session touches a relevant file, the matching lore is recalled automatically as
+`TEAMLORE RECALL:` context. Nobody's agent repeats a lesson another agent already
+learned.
+
+Break things only once.
 
 Installed and maintained by [teamlore](https://github.com/lak7/teamlore).
-Onboarding a teammate is just `git pull`.
+Onboarding a teammate is `git pull`.
 
 ## The one rule: lore is code — review it
 

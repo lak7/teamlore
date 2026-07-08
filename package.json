@@ -1,7 +1,7 @@
 {
   "name": "teamlore",
   "version": "0.2.2",
-  "description": "Shared memory for your team's AI agents. Ten Claudes, one lore.",
+  "description": "Break things only once. Shared memory for your team's Claude Code — agents distill lessons into reviewable .lore/ files in git; every teammate's agent recalls them.",
   "bin": {
     "teamlore": "bin/teamlore.js"
   },
@@ -15,12 +15,15 @@
   "keywords": [
     "claude",
     "claude-code",
-    "mcp",
-    "ai-agents",
-    "memory",
+    "claude-skill",
+    "agent-memory",
     "team-memory",
-    "tribal-knowledge",
-    "skill"
+    "ai-agents",
+    "shared-memory",
+    "anthropic",
+    "developer-tools",
+    "git",
+    "lore"
   ],
   "author": "Lakshay Gupta (https://github.com/lak7)",
   "license": "MIT",
