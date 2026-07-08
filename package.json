@@ -1,6 +1,6 @@
 {
   "name": "teamlore",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Break things only once. Shared memory for your team's Claude Code — agents distill lessons into reviewable .lore/ files in git; every teammate's agent recalls them.",
   "bin": {
     "teamlore": "bin/teamlore.js"
