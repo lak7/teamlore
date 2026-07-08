@@ -1,6 +1,6 @@
 {
   "name": "teamlore",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Shared memory for your team's AI agents. Ten Claudes, one lore.",
   "bin": {
     "teamlore": "bin/teamlore.js"
