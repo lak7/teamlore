@@ -27,6 +27,7 @@ function help() {
   line('  ' + bold('Usage'));
   cmdRow('npx teamlore init', 'Install the skill, hooks & .lore/ in this repo');
   cmdRow('npx teamlore remove', 'Uninstall (keeps .lore/; --purge deletes it too)');
+  cmdRow('npx teamlore scarmap', 'Open the scar heatmap of .lore/ (--root <dir> to target another repo)');
   cmdRow('npx teamlore --help', 'Show this help');
   cmdRow('npx teamlore --version', 'Print the version');
   line('');
@@ -42,6 +43,7 @@ function commandName() {
     case 'init':
     case 'remove':
     case 'uninstall':
+    case 'scarmap':
       return cmd;
     case '-v':
     case '--version':
@@ -74,6 +76,20 @@ async function main() {
         const purge = process.argv.slice(3).some((a) => a === '--purge');
         fields.purge = purge;
         process.exitCode = run(process.cwd(), { purge });
+        return;
+      }
+      case 'scarmap': {
+        const { run } = require('../lib/scarmap/scarmap');
+        const args = process.argv.slice(3);
+        const outIdx = args.indexOf('--out');
+        const out = outIdx >= 0 ? args[outIdx + 1] : undefined;
+        const rootIdx = args.indexOf('--root');
+        let root = rootIdx >= 0 ? args[rootIdx + 1] : undefined;
+        if (!root) {
+          // Accept a bare positional path: `teamlore scarmap ./some/repo`.
+          root = args.find((a, i) => !a.startsWith('--') && a !== out && args[i - 1] !== '--out');
+        }
+        process.exitCode = run(process.cwd(), { out, root });
         return;
       }
       case '-v':
