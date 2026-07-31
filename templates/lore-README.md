@@ -8,6 +8,9 @@ learned.
 
 Break things only once.
 
+See this folder as a **living scar map** — every lesson a node, every real
+relationship an edge: `npx teamlore scarmap`
+
 Installed and maintained by [teamlore](https://github.com/lak7/teamlore).
 Onboarding a teammate is `git pull`.
 

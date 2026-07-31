@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/teamlore.png" alt="teamlore" width="160" />
+</p>
+
 # teamlore 🧠
 
 **Break things only once.**
@@ -10,6 +14,28 @@ accounts. The brain is a `.lore/` folder in git. Onboarding is
 ```bash
 npx teamlore init
 ```
+
+## Every codebase has scars. Now you can see them move.
+
+![scarmap — a living map of your team's scars](docs/scarmap.gif)
+
+```bash
+npx teamlore scarmap
+```
+
+One command renders `.lore/` as a **living scar map** — a force-directed
+graph that settles in front of you, in your browser. Every node is a lesson,
+sized by severity (mistake > gotcha > decision) and colored by decay
+(fresh → stale). Every edge is a **real relationship** — overlapping paths,
+shared commits, explicit links. No embeddings, no word-similarity guesses:
+if two scars are connected, it's because the repo says so.
+
+Click a scar for the full story. Flip to the tree view for risk density by
+directory. Export a watermarked PNG in one click and drop it in a standup,
+a README, or a tweet — the image is the pitch.
+
+Offline, zero network calls, one self-contained HTML file. No server,
+no accounts, ever.
 
 ## Your team already learned this
 
@@ -58,6 +84,9 @@ silence is a feature.
 
 **Review.** Lore rides the PR. Humans merge. Nothing enters the brain
 unreviewed.
+
+**See.** `npx teamlore scarmap` turns the brain into a living scar map —
+where the danger zones are, what's fresh, what's gone stale.
 
 ## The lore contract
 
@@ -136,7 +165,8 @@ DO_NOT_TRACK=1 npx teamlore init
 
 ## Status
 
-v0.2 — the skill-and-folder release. Path-scoped grep recall. No server,
+v0.2 — the skill-and-folder release. Path-scoped grep recall, plus
+`teamlore scarmap` — the living scar map of your team's lore. No server,
 no embeddings. Planned fast-follows: `teamlore stale`, `teamlore stats`
 (the "dodges" receipts), and cross-agent adapters. Built for Claude Code.
 Cursor & Codex next.

@@ -27,7 +27,7 @@ function help() {
   line('  ' + bold('Usage'));
   cmdRow('npx teamlore init', 'Install the skill, hooks & .lore/ in this repo');
   cmdRow('npx teamlore remove', 'Uninstall (keeps .lore/; --purge deletes it too)');
-  cmdRow('npx teamlore scarmap', 'Open the scar heatmap of .lore/ (--root <dir> to target another repo)');
+  cmdRow('npx teamlore scarmap', 'See .lore/ as a living scar map (--root <dir> to target another repo)');
   cmdRow('npx teamlore --help', 'Show this help');
   cmdRow('npx teamlore --version', 'Print the version');
   line('');

@@ -11,3 +11,7 @@ dev-plan/
 .scarmap-test/
 scarmap.html
 teamlore-scarmap/
+
+# raw demo recordings (112MB .mov exceeds GitHub's 100MB push limit;
+# the optimized loop lives at docs/scarmap.gif)
+public/
