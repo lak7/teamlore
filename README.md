@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/teamlore-read.png" alt="scarmap — a living map of your team's scars" width="125%">
+  <img src="docs/scarmap01.png" alt="scarmap — a living map of your team's scars" width="125%">
 </p>
 
 ## Table of Contents
