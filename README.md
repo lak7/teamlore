@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://github.com/lak7/teamlore">
-    <img src="docs/teamlorelogo2.png" alt="teamlore logo" height="425">
+    <img src="docs/teamlorelogo2.png" alt="teamlore logo" height="325">
   </a>
 </p>
 
