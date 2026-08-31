@@ -2,14 +2,18 @@
 /*
  * teamlore recall — path-scoped retrieval of shared team lore.
  *
- * Invoked by two Claude Code hooks (see .claude/settings.json):
- *   node recall.js session       (SessionStart)  broad digest from git-recent files
- *   node recall.js pretooluse     (PreToolUse Edit|Write)  precise per-file recall
+ * Invoked by host hooks (see .claude/settings.json and the per-host wiring):
+ *   node recall.js session [--host <id>]   (SessionStart)  broad digest from git-recent files
+ *   node recall.js prompt  [--host <id>]   (UserPromptSubmit)  precise per-prompt recall
  *
  * Reads the hook payload as JSON on stdin, matches `.lore/*.md` frontmatter
- * `paths` globs against the relevant files, and prints
- *   {"hookSpecificOutput":{"hookEventName":..., "additionalContext":"TEAMLORE RECALL ..."}}
- * to stdout. Emits NOTHING when there are no matches (silent empty state).
+ * `paths` globs against the relevant files, and prints a host envelope to
+ * stdout:
+ *   claude/zcode/opencode -> {"hookSpecificOutput":{"hookEventName":...,
+ *                             "additionalContext":"TEAMLORE RECALL ..."}}
+ *   cursor                -> {"additional_context": "..."}
+ *   kimi                  -> plain text (Kimi appends stdout to context)
+ * Emits NOTHING when there are no matches (silent empty state).
  *
  * Zero dependencies. Never throws to the hook: any failure exits 0 silently so
  * a broken recall can never block a developer's session.
@@ -23,6 +27,32 @@ const { execSync } = require('child_process');
 
 const MAX_ENTRIES = 5;
 const MAX_CHARS = 3200; // ~800 tokens hard cap
+
+// Host registry (frozen contract, mirrored in distill-check.js). Scripts are
+// standalone and cannot require lib/, so this map is embedded as a literal.
+const HOSTS = {
+  claude:   { skillDir: '.claude/skills/teamlore',    envelope: 'claude'  },
+  cursor:   { skillDir: '.claude/skills/teamlore',    envelope: 'cursor'  },
+  zcode:    { skillDir: '.zcode/skills/teamlore',     envelope: 'claude'  },
+  kimi:     { skillDir: '.kimi-code/skills/teamlore', envelope: 'kimi'    },
+  opencode: { skillDir: '.claude/skills/teamlore',    envelope: 'claude'  },
+};
+
+// `--host <id>` may appear anywhere in argv; default claude keeps the shipped
+// hook commands byte-identical. Unknown ids fall back to claude (fail open).
+function parseArgv(argv) {
+  let host = 'claude';
+  const positional = [];
+  for (let i = 2; i < argv.length; i++) {
+    if (argv[i] === '--host' && i + 1 < argv.length) {
+      host = HOSTS[argv[i + 1]] ? argv[i + 1] : 'claude';
+      i++;
+    } else {
+      positional.push(argv[i]);
+    }
+  }
+  return { host, mode: positional[0] || 'session' };
+}
 
 function readStdin() {
   try {
@@ -264,11 +294,22 @@ function render(entries, header) {
   return lines.join('\n');
 }
 
-function emit(hookEventName, text) {
+function emit(host, hookEventName, text) {
   if (!text) return; // silent empty state
-  process.stdout.write(
-    JSON.stringify({ hookSpecificOutput: { hookEventName, additionalContext: text } })
-  );
+  const envelope = HOSTS[host].envelope;
+  if (envelope === 'cursor') {
+    // Cursor sessionStart injects {"additional_context": ...} (no wrapper).
+    process.stdout.write(JSON.stringify({ additional_context: text }));
+  } else if (envelope === 'kimi') {
+    // Kimi appends plain stdout to context as a user message — no JSON.
+    // (Prompt mode is the wired path; session mode falls back the same way.)
+    process.stdout.write(text);
+  } else {
+    // claude / zcode / opencode: identical hookSpecificOutput envelope.
+    process.stdout.write(
+      JSON.stringify({ hookSpecificOutput: { hookEventName, additionalContext: text } })
+    );
+  }
 }
 
 // ---- per-session dedup (pretooluse mode) ---------------------------------
@@ -297,10 +338,20 @@ function recordInjected(stateFile, files) {
 // ---- main ----------------------------------------------------------------
 
 function main() {
-  const mode = process.argv[2] || 'session';
+  const { host, mode } = parseArgv(process.argv);
   const input = parseInput();
-  const cwd = input.cwd || process.cwd();
+  // Claude Code sends a scalar `cwd`; Cursor sends `workspace_roots[]` (plus
+  // CURSOR_PROJECT_DIR / CLAUDE_PROJECT_DIR env aliases) — same fallback chain
+  // for every host, first match wins.
+  const cwd =
+    input.cwd ||
+    (Array.isArray(input.workspace_roots) && input.workspace_roots[0]) ||
+    process.env.CURSOR_PROJECT_DIR ||
+    process.env.CLAUDE_PROJECT_DIR ||
+    process.cwd();
   const root = repoRoot(cwd);
+  // Machine-global hooks fire in every repo: no .lore/ -> explicit first no-op.
+  if (!fs.existsSync(path.join(root, '.lore'))) return;
   const lore = loadLoreFiles(root);
   if (!lore.length) return;
 
@@ -325,7 +376,7 @@ function main() {
     const text = render(shown, `TEAMLORE RECALL (${shown.length} for what you're working on):`);
     if (text) {
       recordInjected(stateFile, shown.map((e) => e.file));
-      emit('UserPromptSubmit', text);
+      emit(host, 'UserPromptSubmit', text);
     }
     return;
   }
@@ -341,7 +392,7 @@ function main() {
   if (text) {
     // record so the first UserPromptSubmit doesn't repeat the same entries
     recordInjected(dedupStatePath(input.session_id), scope.map((e) => e.file));
-    emit('SessionStart', text);
+    emit(host, 'SessionStart', text);
   }
 }
 

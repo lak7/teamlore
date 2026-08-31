@@ -26,6 +26,7 @@ function help() {
   line(ui.banner(version()));
   line('  ' + bold('Usage'));
   cmdRow('npx teamlore init', 'Install the skill, hooks & .lore/ in this repo');
+  line('    ' + cyan(padEnd('npx teamlore init --agents <ids>', 33)) + dim('Multi-host install: claude,cursor,zcode,kimi,opencode | all'));
   cmdRow('npx teamlore remove', 'Uninstall (keeps .lore/; --purge deletes it too)');
   cmdRow('npx teamlore scarmap', 'See .lore/ as a living scar map (--root <dir> to target another repo)');
   cmdRow('npx teamlore --help', 'Show this help');
@@ -67,7 +68,25 @@ async function main() {
     switch (cmd) {
       case 'init': {
         const { run } = require('../lib/init');
-        process.exitCode = run(process.cwd());
+        const args = process.argv.slice(3);
+        // A repeated --agents flag is an ambiguous request — error out rather
+        // than silently dropping the second list (union-merge rejected:
+        // erroring is simpler and never guesses at intent).
+        const agentFlags = args.filter((a) => a === '--agents' || a.startsWith('--agents='));
+        if (agentFlags.length > 1) {
+          console.error('--agents given twice — pass one host list, e.g. --agents claude,kimi');
+          process.exitCode = 1;
+          return;
+        }
+        const eq = args.find((a) => a.startsWith('--agents='));
+        const flagIdx = args.indexOf('--agents');
+        let agents;
+        if (eq) agents = eq.slice('--agents='.length);
+        else if (flagIdx >= 0) {
+          const next = args[flagIdx + 1];
+          agents = next && !next.startsWith('--') ? next : '';
+        }
+        process.exitCode = run(process.cwd(), { agents });
         return;
       }
       case 'remove':

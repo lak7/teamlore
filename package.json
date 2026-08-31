@@ -1,7 +1,7 @@
 {
   "name": "teamlore",
-  "version": "0.2.3",
-  "description": "Break things only once. Shared memory for your team's Claude Code — agents distill lessons into reviewable .lore/ files in git; every teammate's agent recalls them.",
+  "version": "0.3.0",
+  "description": "Break things only once. Shared memory for your team's agents (Claude Code, Cursor, ZCode, Kimi Code, OpenCode) — agents distill lessons into reviewable .lore/ files in git; every teammate's agent recalls them.",
   "bin": {
     "teamlore": "bin/teamlore.js"
   },
@@ -16,11 +16,16 @@
     "claude",
     "claude-code",
     "claude-skill",
+    "cursor",
+    "opencode",
+    "kimi",
+    "kimi-code",
+    "zcode",
     "agent-memory",
     "team-memory",
     "ai-agents",
     "shared-memory",
-    "anthropic",
+    "cross-agent",
     "developer-tools",
     "git",
     "lore"
