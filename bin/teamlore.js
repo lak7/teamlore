@@ -69,6 +69,15 @@ async function main() {
       case 'init': {
         const { run } = require('../lib/init');
         const args = process.argv.slice(3);
+        // A repeated --agents flag is an ambiguous request — error out rather
+        // than silently dropping the second list (union-merge rejected:
+        // erroring is simpler and never guesses at intent).
+        const agentFlags = args.filter((a) => a === '--agents' || a.startsWith('--agents='));
+        if (agentFlags.length > 1) {
+          console.error('--agents given twice — pass one host list, e.g. --agents claude,kimi');
+          process.exitCode = 1;
+          return;
+        }
         const eq = args.find((a) => a.startsWith('--agents='));
         const flagIdx = args.indexOf('--agents');
         let agents;

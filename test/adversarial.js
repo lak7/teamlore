@@ -255,12 +255,11 @@ test('A1 cursor: decoy command mentioning "skills/teamlore/scripts" — init pre
   const after = JSON.parse(read(hooksPath)); // file must survive: a genuine user hook remains
   assert.deepStrictEqual(
     after.hooks.afterFileEdit,
-    [{ command: './hooks/format.sh' }],
-    'the genuine (marker-free) user hook must always survive'
+    preExisting.hooks.afterFileEdit,
+    'every user hook survives remove — a command that merely MENTIONS the teamlore scripts path is not teamlore-owned (anchored-script strip: only commands executing teamlore\u0027s recall/distill-check.js are unwound)'
   );
   if (JSON.stringify(after).includes(DECOY)) {
-    // marker semantics would have to be exact-command-scoped for this to happen
-    console.log('  note: decoy survived remove (exact-command strip semantics)');
+    console.log('  note: decoy survived remove (strip matches only commands executing teamlore\u0027s own recall/distill-check.js)');
   } else {
     finding(
       'F1 cursor: `remove` deletes a user hook whose command merely CONTAINS the substring ' +

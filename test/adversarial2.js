@@ -1,33 +1,38 @@
 'use strict';
 
 /*
- * Adversarial pass 2 — Red Team agent A6 (merge-safety attack suite).
- * Plain node assert, no frameworks, zero deps, Windows-safe.
+ * Adversarial pass 2 — merge-safety attack suite (A6 red team, remediated by
+ * A8). Plain node assert, no frameworks, zero deps, Windows-safe.
  * Run: node test/adversarial2.js
  *
- * Mission: break the merge-safety guarantees (master-mission §7, §9 R1/R2/R6).
- * Report-driven: every probe prints one of
- *   CONFIRMED-EXPLOIT [tag] — the guarantee is broken today (repro in this file)
- *   SAFE [tag]              — refused-or-preserved under the attack
- *   FINDING [tag]           — semantics preserved but bytes/UX diverge (data for triage)
- * Product code is NOT fixed here (lib/ out of scope). Assertions pin CURRENT
- * behavior (so the suite stays green); the printed verdicts are the report.
- *
- * Probe map (mission order):
- *   F1a/F1b  deepened — HOOK_MARKER substring strip (cursor file deletion + claude decoy)
- *   F2a/F2b  deepened — kimi whole-stanza strip (comments/user keys) + nested [[hooks.subtable]]
- *   F3a..F3f deepened — JSON re-serialization (CRLF, dup keys, key order, BOM, JSONC, deep nesting)
- *   F4a..F4c deepened — AGENTS.md strip (fenced code block, glued text, seam whitespace)
- *   N1a..N1f zcode config.json hostility (array, hooks-as-string/number, enabled:"true",
- *            relocated event, 2MB, ~/.zcode/cli as a FILE)
- *   N2a..N2e kimi TOML hostility (BOM, CP1256, interleaved stanzas, quote/%/unicode home,
- *            config.toml as a directory)
- *   N3a/N3b  atomic-write tmp hygiene (stray *.tmp-* after success; after rename failure)
- *   N4a..N4f hook scripts (10MB stdin, 1MB body, paths ["**"] cap, session_id traversal,
- *            sanitization collision, unknown --host)
- *   N5a..N5e CLI --agents parsing (flag twice, equals form, case, empty, empty element)
- *   N6       .lore/README.md written by the user is never overwritten
- *   N7       .gitignore blank-line collapse on remove
+ * History: A6 probed the merge-safety guarantees (master-mission §7, §9
+ * R1/R2/R6) and pinned CURRENT behavior while printing verdicts. A8 then
+ * fixed the five confirmed defects in lib/ and CONVERTED the corresponding
+ * probes into hard assertions of the new SAFE behavior (probe IDs kept):
+ *   F1a/F1a2/F1b — strip ownership is anchored-script
+ *                  (skills/teamlore/scripts/(recall|distill-check).js), so
+ *                  foreign commands that merely mention the marker path
+ *                  survive remove; cursor's removable path can no longer
+ *                  delete a user-authored hooks.json. (Also tightens
+ *                  v0.2.3's substring remove — same defect there, F1b.)
+ *   F2a/F2a2/F2a3 — kimi strip is key-level: comment mentions never count as
+ *                  ownership; user keys sharing a teamlore stanza survive
+ *                  (only the teamlore command + paired event line go, with a
+ *                  warning row); ambiguous stanzas are left untouched with
+ *                  manual instructions.
+ *   F4a          — AGENTS.md markers inside fenced code blocks (```/~~~, any
+ *                  length, info strings included) are ignored by install and
+ *                  strip; a real section is appended at EOF and only real
+ *                  sections are removed. Fenced content is never rewritten.
+ *   N1b          — zcode init REFUSES a non-object "hooks" value (exit 1,
+ *                  warning, byte-identical file) instead of replacing it;
+ *                  remove warns and leaves the file untouched.
+ *   N2b          — non-UTF-8 config.toml is refused before any decode
+ *                  (init exit 1 / remove warns), bytes never transcoded.
+ *   N5a          — a repeated --agents flag errors with exit 1.
+ * Remaining probes (F3x, F4b/F4c, N1a/N1c..N1f, N2a/N2c..N2e, N3x, N4x, N6,
+ * N7) keep pinning current behavior; their printed verdicts are the report
+ * (FINDING = accepted-with-note, data for triage).
  *
  * Safety: every teamlore spawn runs with a fake home (USERPROFILE+HOME redirect)
  * so remove/init can never touch this machine's real user-level configs.
@@ -222,10 +227,10 @@ function mkLoreRepo(entries) {
 }
 
 // ==========================================================================
-// F1 deepened — HOOK_MARKER ('skills/teamlore/scripts') SUBSTRING strip
+// F1 — strip ownership is anchored-script (A8 remediation of the A6 finding)
 // ==========================================================================
 
-test('F1a cursor remove: a user hooks.json whose only hook MERELY MENTIONS the marker is deleted whole (removable path)', () => {
+test('F1a cursor remove: a user hooks.json whose only hook MERELY MENTIONS the marker survives byte-identical (no removable-path deletion)', () => {
   const repo = tmpDir('tl-a6-f1a-');
   gitInit(repo);
   fs.mkdirSync(path.join(repo, '.cursor'));
@@ -239,70 +244,69 @@ test('F1a cursor remove: a user hooks.json whose only hook MERELY MENTIONS the m
 
   const r = teamlore(['remove'], repo, fakeHomeEnv(tmpDir('tl-a6-f1a-home-')));
   assert.strictEqual(r.status, 0, r.stdout + r.stderr);
-  const deleted = !fs.existsSync(hooksPath);
-  if (deleted) {
-    verdict('CONFIRMED-EXPLOIT', 'F1a', 2,
-      'remove DELETED the user-authored .cursor/hooks.json (stripCursorHooksText "removable": ' +
-      'doc reduced to {version:1} because the decoy command contains HOOK_MARKER). Whole-file ' +
-      'deletion from a substring match — user data loss, S4 violated.');
-  } else {
-    verdict('SAFE', 'F1a', 3, 'file survived remove (behavior changed since finding)');
-  }
-  assert.strictEqual(deleted, true, 'current behavior: file deleted (finding F1a)');
+  assert.ok(fs.existsSync(hooksPath),
+    'a hooks.json teamlore did not author must never be deleted (removable requires an anchored teamlore strip)');
+  assert.strictEqual(read(hooksPath), userFile,
+    'no teamlore command matched -> nothing stripped -> file byte-identical');
+  verdict('SAFE', 'F1a', 3,
+    'anchored-script strip: a hooks.json whose only hook merely mentions the marker path is ' +
+    'left byte-identical — the "created-by-teamlore and now empty" deletion cannot trigger ' +
+    'because teamlore removed nothing it owns.');
 
-  // Variant: one real user hook next to the decoy — file kept, decoy stripped.
+  // Variant: one real user hook next to the decoy — both survive byte-identical.
   const repo2 = tmpDir('tl-a6-f1a2-');
   gitInit(repo2);
   fs.mkdirSync(path.join(repo2, '.cursor'));
   const hooksPath2 = path.join(repo2, '.cursor', 'hooks.json');
-  write(hooksPath2, '{\n  "version": 1,\n  "hooks": {\n    "stop": [\n      ' +
+  const userFile2 = '{\n  "version": 1,\n  "hooks": {\n    "stop": [\n      ' +
     '{ "command": "node my-logger.js skills/teamlore/scripts" },\n      ' +
-    '{ "command": "node format.js" }\n    ]\n  }\n}\n');
+    '{ "command": "node format.js" }\n    ]\n  }\n}\n';
+  write(hooksPath2, userFile2);
   const r2 = teamlore(['remove'], repo2, fakeHomeEnv(tmpDir('tl-a6-f1a2-home-')));
   assert.strictEqual(r2.status, 0, r2.stdout + r2.stderr);
-  const after = JSON.parse(read(hooksPath2));
-  assert.deepStrictEqual(after.hooks.stop, [{ command: 'node format.js' }],
-    'the marker-free user hook must survive');
-  verdict('CONFIRMED-EXPLOIT', 'F1a2', 2,
-    'any user hook whose command merely CONTAINS "skills/teamlore/scripts" is stripped by ' +
-    'remove (substring scan over every event). Init is exact-match-safe; remove is not.');
+  assert.deepStrictEqual(JSON.parse(read(hooksPath2)).hooks.stop,
+    [{ command: 'node my-logger.js skills/teamlore/scripts' }, { command: 'node format.js' }],
+    'a foreign hook whose command merely CONTAINS the marker path must survive remove');
+  assert.strictEqual(read(hooksPath2), userFile2, 'decoy + genuine hook byte-identical');
+  verdict('SAFE', 'F1a2', 3,
+    'any user hook whose command merely CONTAINS "skills/teamlore/scripts" survives remove — ' +
+    'strip matches only commands executing skills/teamlore/scripts/(recall|distill-check).js.');
 });
 
-test('F1b claude remove: same substring class via shared stripSettingsObject — foreign hook under PostToolUse is unwired', () => {
+test('F1b claude remove: same anchored rule via shared stripSettingsObject — foreign PostToolUse decoy survives', () => {
   const repo = tmpDir('tl-a6-f1b-');
   gitInit(repo);
   fs.mkdirSync(path.join(repo, '.claude'));
   const settingsPath = path.join(repo, '.claude', 'settings.json');
   const DECOY = 'node audit.js --watch "$CLAUDE_PROJECT_DIR/.claude/skills/teamlore/scripts"';
-  write(settingsPath, JSON.stringify({
+  const original = JSON.stringify({
     model: 'opus',
     hooks: {
       PostToolUse: [{ matcher: '', hooks: [{ type: 'command', command: DECOY }] }],
       Notification: [{ matcher: '', hooks: [{ type: 'command', command: 'node notify.js' }] }],
     },
-  }, null, 2) + '\n');
+  }, null, 2) + '\n';
+  write(settingsPath, original);
 
   const r = teamlore(['remove'], repo, fakeHomeEnv(tmpDir('tl-a6-f1b-home-')));
   assert.strictEqual(r.status, 0, r.stdout + r.stderr);
-  const after = JSON.parse(read(settingsPath));
-  assert.strictEqual(after.model, 'opus', 'unrelated settings key preserved');
-  assert.ok(JSON.stringify(after).includes('node notify.js'), 'marker-free hook preserved');
-  if (!JSON.stringify(after).includes('audit.js')) {
-    verdict('CONFIRMED-EXPLOIT', 'F1b', 2,
-      'claude remove strips a foreign PostToolUse hook because its command contains the marker ' +
-      'substring (stripSettingsObject is shared by claude+zcode adapters — the F1 class is ' +
-      'repo-wide, not cursor-specific).');
-  } else {
-    verdict('SAFE', 'F1b', 3, 'decoy survived (behavior changed since finding)');
-  }
-  assert.ok(!JSON.stringify(after).includes('audit.js'), 'current behavior: decoy stripped (F1b)');
+  const after = read(settingsPath);
+  assert.strictEqual(JSON.parse(after).model, 'opus', 'unrelated settings key preserved');
+  assert.ok(after.includes('node notify.js'), 'marker-free hook preserved');
+  assert.ok(after.includes('audit.js'),
+    'a foreign PostToolUse hook that merely mentions the scripts path must NOT be stripped');
+  assert.strictEqual(after, original, 'nothing of teamlore\'s present -> file byte-identical');
+  verdict('SAFE', 'F1b', 3,
+    'claude/zcode/cursor share the anchored-script strip (isTeamloreScriptCommand): a foreign ' +
+    'hook is only stripped when its command executes teamlore\'s own recall/distill-check.js. ' +
+    'This also tightens v0.2.3\'s substring remove, which had the same defect.');
 });
 
 // ==========================================================================
-// F2 deepened — kimi whole-[[hooks]]-stanza strip
+// F2 — kimi key-level [[hooks]] strip (A8 remediation of the A6 finding)
 // ==========================================================================
 
-test('F2a kimi remove: a user stanza whose COMMENT mentions the marker is stripped whole', () => {
+test('F2a kimi remove: a stanza whose COMMENT mentions the marker is left 100% intact', () => {
   const home = tmpDir('tl-a6-f2a-home-');
   const repo = tmpDir('tl-a6-f2a-');
   gitInit(repo);
@@ -321,18 +325,14 @@ test('F2a kimi remove: a user stanza whose COMMENT mentions the marker is stripp
 
   const r = teamlore(['remove'], repo, env);
   assert.strictEqual(r.status, 0, r.stdout + r.stderr);
-  const after = read(tomlPath);
-  if (!after.includes('own-hook.js')) {
-    verdict('CONFIRMED-EXPLOIT', 'F2a', 2,
-      'remove stripped the user ENTIRE stanza because a comment line contains HOOK_MARKER — ' +
-      'comment text alone counts as ownership (stripHookStanzas scans every line, comments ' +
-      'included). User hook + user keys gone from a machine-global config.');
-  } else {
-    verdict('SAFE', 'F2a', 3, 'comment-mention no longer strips the stanza');
-  }
-  assert.ok(!after.includes('own-hook.js'), 'current behavior: stanza stripped (F2a)');
+  assert.strictEqual(read(tomlPath), original,
+    'a comment mentioning the marker is not ownership — the user stanza must survive byte-exact');
+  verdict('SAFE', 'F2a', 3,
+    'kimi strip is key-level: only a command line executing a teamlore script counts as ' +
+    'ownership, so a stanza whose COMMENT mentions the marker is untouched.');
 
-  // Real user keys sharing the teamlore stanza (A3's B6) — re-confirm severity.
+  // Real user keys sharing the teamlore stanza (A3's B6) — converted from the
+  // A6 finding: the teamlore lines go, the user keys stay, a warning reports it.
   const home2 = tmpDir('tl-a6-f2a2-home-');
   const repo2 = tmpDir('tl-a6-f2a2-');
   gitInit(repo2);
@@ -348,14 +348,37 @@ test('F2a kimi remove: a user stanza whose COMMENT mentions the marker is stripp
   ].join('\n'));
   const r2 = teamlore(['remove'], repo2, fakeHomeEnv(home2));
   assert.strictEqual(r2.status, 0, r2.stdout + r2.stderr);
-  const after2 = read(tomlPath2);
-  assert.ok(!after2.includes('priority = 5') && !after2.includes('timeout_ms = 2000'),
-    'user keys sharing the stanza die with it');
-  verdict('CONFIRMED-EXPLOIT', 'F2a2', 2,
-    'user keys (priority, timeout_ms) sharing the teamlore stanza are deleted with it — no ' +
-    'key-level granularity. Correct semantics: strip only the teamlore-owned keys (command line ' +
-    'matching HOOK_MARKER), drop the stanza only when nothing user-owned remains; a comment ' +
-    'must never count as ownership.');
+  assert.strictEqual(read(tomlPath2), '[[hooks]]\npriority = 5\ntimeout_ms = 2000\n',
+    'only the teamlore command + paired event line go; the user keys are kept in the stanza');
+  assert.ok(r2.stdout.includes('!'), 'a warning row reports the partial strip: ' + r2.stdout);
+  verdict('SAFE', 'F2a2', 3,
+    'user keys (priority, timeout_ms) sharing the teamlore stanza are NOT eaten: key-level ' +
+    'strip removes only the teamlore command + paired UserPromptSubmit event lines and ' +
+    'prints a warning row about the leftover.');
+
+  // Ambiguous shape (teamlore command but the event line was rewired by the
+  // user): never guessed at — stanza untouched + exact manual instructions.
+  const home3 = tmpDir('tl-a6-f2a3-home-');
+  const repo3 = tmpDir('tl-a6-f2a3-');
+  gitInit(repo3);
+  fs.mkdirSync(path.join(repo3, '.kimi-code'));
+  const tomlPath3 = path.join(home3, '.kimi-code', 'config.toml');
+  const ambiguous = [
+    '[[hooks]]',
+    'event = "Stop"',
+    'command = "node ~/.kimi-code/skills/teamlore/scripts/recall.js prompt --host kimi"',
+    'priority = 5',
+    '',
+  ].join('\n');
+  write(tomlPath3, ambiguous);
+  const r3 = teamlore(['remove'], repo3, fakeHomeEnv(home3));
+  assert.strictEqual(r3.status, 0, r3.stdout + r3.stderr);
+  assert.strictEqual(read(tomlPath3), ambiguous, 'when the owned pair cannot be identified, nothing is stripped');
+  assert.ok(r3.stdout.includes('remove the teamlore lines manually') && r3.stdout.includes('priority = 5'),
+    'manual-instructions warning prints the exact stanza: ' + r3.stdout);
+  verdict('SAFE', 'F2a3', 3,
+    'a teamlore command in a shape we cannot unambiguously unwind leaves the stanza untouched; ' +
+    'remove prints the exact lines as manual instructions instead of eating user keys.');
 });
 
 test('F2b kimi remove with nested [[hooks.subtable]]: only the marker stanza goes, user stanza + subtable stay byte-exact', () => {
@@ -410,9 +433,10 @@ test('F3a CRLF .claude/settings.json: whole-file EOL conversion to LF on init (b
   const parsed = JSON.parse(after);
   assert.strictEqual(parsed.model, 'opus', 'data survives the round-trip');
   if (!after.includes('\r\n')) {
-    verdict('CONFIRMED-EXPLOIT', 'F3a', 3,
-      'init rewrote EVERY line ending of the user file CRLF->LF (JSON.stringify ' +
-      're-serialization). Data intact, bytes not — beyond teamlore\'s own additions.');
+    verdict('FINDING', 'F3a', 3,
+      'ACCEPTED-WITH-NOTE (F3 class): init rewrites every line ending of the user file ' +
+      'CRLF->LF (JSON.stringify re-serialization). Data intact, bytes not — beyond teamlore\'s ' +
+      'own additions. Semantics preserved; accepted, no fix scheduled.');
   } else {
     verdict('SAFE', 'F3a', 3, 'CRLF preserved (behavior changed since finding)');
   }
@@ -432,10 +456,10 @@ test('F3b duplicate JSON keys: init silently collapses to the last value (first 
   assert.strictEqual(JSON.parse(after).version, 2, 'last duplicate wins (JSON.parse semantics)');
   const occurrences = after.split('"version"').length - 1;
   if (occurrences === 1) {
-    verdict('CONFIRMED-EXPLOIT', 'F3b', 3,
-      'duplicate keys are silently deduped by parse->stringify (first "version": 1 dropped ' +
-      'without any refusal or warning). F3 class: re-serialization is not byte-faithful to ' +
-      'the textual record.');
+    verdict('FINDING', 'F3b', 3,
+      'ACCEPTED-WITH-NOTE (F3 class): duplicate keys are silently deduped by parse->stringify ' +
+      '(first "version": 1 dropped without any refusal or warning). Re-serialization is not ' +
+      'byte-faithful to the textual record; semantics preserved; accepted, no fix scheduled.');
   } else {
     verdict('SAFE', 'F3b', 3, 'duplicate keys preserved (behavior changed since finding)');
   }
@@ -530,10 +554,10 @@ test('F3f very deep nesting: either works or refuses cleanly — file never corr
 });
 
 // ==========================================================================
-// F4 deepened — AGENTS.md marker strip
+// F4 — AGENTS.md marker strip (F4a remediated: fence-aware; F4b/F4c accepted)
 // ==========================================================================
 
-test('F4a AGENTS.md markers inside a fenced code block: init silently skips install; remove deletes the fenced example', () => {
+test('F4a AGENTS.md markers inside a fenced code block: init appends a real section at EOF; remove restores the fenced original byte-exact', () => {
   const repo = tmpDir('tl-a6-f4a-');
   gitInit(repo);
   const agentsPath = path.join(repo, 'AGENTS.md');
@@ -543,21 +567,20 @@ test('F4a AGENTS.md markers inside a fenced code block: init silently skips inst
 
   const r = teamlore(['init', '--agents', 'cursor'], repo, fakeHomeEnv(tmpDir('tl-a6-f4a-home-')));
   assert.strictEqual(r.status, 0, r.stdout + r.stderr);
-  assert.strictEqual(read(agentsPath), original,
-    'init must not touch the file (it does) — but it also silently installs nothing');
+  const afterInit = read(agentsPath);
+  assert.ok(afterInit.startsWith(original), 'fenced content untouched by init');
+  assert.ok(afterInit.includes('example config'), 'the fenced example line is never rewritten');
+  assert.ok(afterInit.lastIndexOf('<!-- teamlore:start -->') > afterInit.lastIndexOf('```'),
+    'a REAL section is appended at EOF (fenced markers do not count as installed)');
 
   const r2 = teamlore(['remove'], repo, fakeHomeEnv(tmpDir('tl-a6-f4a2-home-')));
   assert.strictEqual(r2.status, 0, r2.stdout + r2.stderr);
-  const after = read(agentsPath);
-  if (!after.includes('example config')) {
-    verdict('CONFIRMED-EXPLOIT', 'F4a', 2,
-      'AGENTS.md strip operates on raw text with no fence awareness: markers inside a ``` code ' +
-      'block are treated as real, so remove deleted the user\'s documented example line from ' +
-      'inside their fence; init also silently skipped installing the fallback (double damage).');
-  } else {
-    verdict('SAFE', 'F4a', 3, 'fenced markers ignored (behavior changed since finding)');
-  }
-  assert.strictEqual(after, '# Docs\n\n```md\n```\n', 'current behavior: fenced example deleted (F4a)');
+  assert.strictEqual(read(agentsPath), original,
+    'remove strips exactly the real section; the fenced markers and their content are untouched');
+  verdict('SAFE', 'F4a', 3,
+    'fence-aware AGENTS.md handling: markers inside ```/~~~ fences (info strings and longer ' +
+    'fences included) are ignored by install and strip — a real section is appended at EOF and ' +
+    'only a real (unfenced) section is removed; fenced content is never deleted or rewritten.');
 });
 
 test('F4b AGENTS.md user text glued to markers is fused into one word on remove', () => {
@@ -570,9 +593,10 @@ test('F4b AGENTS.md user text glued to markers is fused into one word on remove'
   assert.strictEqual(r.status, 0, r.stdout + r.stderr);
   const after = read(agentsPath);
   if (after === 'VersionChangelog\n') {
-    verdict('CONFIRMED-EXPLOIT', 'F4b', 3,
-      'content immediately adjacent to the markers (no blank lines) is FUSED on strip: ' +
-      '"Version"+"Changelog" became "VersionChangelog" — outside-marker text rewritten.');
+    verdict('FINDING', 'F4b', 3,
+      'ACCEPTED-WITH-NOTE (mission brief): content immediately adjacent to the markers (no ' +
+      'blank lines) is FUSED on strip: "Version"+"Changelog" became "VersionChangelog" — ' +
+      'outside-marker text rewritten. Semantics preserved; accepted, no fix scheduled.');
   } else {
     verdict('SAFE', 'F4b', 3, 'adjacent text kept separate (behavior changed since finding)');
   }
@@ -620,39 +644,46 @@ test('N1a zcode: top-level ARRAY config — init refuses (exit 1), remove ignore
   verdict('SAFE', 'N1a', 3, 'top-level array: refused on init, ignored on remove, byte-identical throughout.');
 });
 
-test('N1b zcode: hooks as a non-object (string / number) is SILENTLY REPLACED by init', () => {
+test('N1b zcode: hooks as a non-object (string / number) is REFUSED by init — file byte-identical, skills still install', () => {
   const home = tmpDir('tl-a6-n1b-home-');
   const repo = tmpDir('tl-a6-n1b-');
   gitInit(repo);
   fs.mkdirSync(path.join(repo, '.zcode'));
   const cfg = path.join(home, '.zcode', 'cli', 'config.json');
-  write(cfg, '{\n  "hooks": "profile-a",\n  "mcp": { "server-x": { "cmd": "y" } }\n}');
+  const original = '{\n  "hooks": "profile-a",\n  "mcp": { "server-x": { "cmd": "y" } }\n}';
+  write(cfg, original);
 
   const r = teamlore(['init', '--agents', 'zcode'], repo, fakeHomeEnv(home));
-  assert.strictEqual(r.status, 0, 'init does not refuse a string hooks value');
-  const after = read(cfg);
-  const parsed = JSON.parse(after);
-  assert.strictEqual(parsed.mcp['server-x'].cmd, 'y', 'unrelated keys preserved');
-  if (!after.includes('profile-a')) {
-    verdict('CONFIRMED-EXPLOIT', 'N1b', 3,
-      'init silently REPLACED the user\'s "hooks": "profile-a" with a fresh object — the string ' +
-      'value is gone without any warning (violates the "unknown keys preserved" / refuse-on-' +
-      'odd-shape guarantee; top-level shape IS guarded, the hooks key is not).');
-  } else {
-    verdict('SAFE', 'N1b', 3, 'non-object hooks preserved (behavior changed since finding)');
-  }
-  assert.ok(!after.includes('profile-a'), 'current behavior: hooks string clobbered (N1b)');
+  assert.strictEqual(r.status, 1, 'init must refuse a non-object hooks value');
+  assert.ok(r.stdout.includes('!') && /"hooks" value that is not a JSON object/.test(r.stdout),
+    'warning row names the problem: ' + r.stdout);
+  assert.strictEqual(read(cfg), original, 'the string value is never replaced — file byte-identical');
+  assert.ok(fs.existsSync(path.join(repo, '.zcode', 'skills', 'teamlore', 'SKILL.md')),
+    'project skill still installed before the refusal');
+  assert.ok(fs.existsSync(path.join(home, '.zcode', 'skills', 'teamlore', 'SKILL.md')),
+    'user skill copy still installed before the refusal');
+  verdict('SAFE', 'N1b', 3,
+    'hooks:"profile-a" — init refuses (exit 1, warning row, config byte-identical) while the ' +
+    'project + user skill copies still install; the value is never silently replaced.');
 
-  // number variant shares the same code path — verify once.
+  // remove: leave the file untouched, warn.
+  const r2 = teamlore(['remove'], repo, fakeHomeEnv(home));
+  assert.strictEqual(r2.status, 0, r2.stdout + r2.stderr);
+  assert.ok(r2.stdout.includes('!') && /not a JSON object/.test(r2.stdout),
+    'remove warns about the non-object hooks: ' + r2.stdout);
+  assert.strictEqual(read(cfg), original, 'remove leaves the refused file byte-identical');
+
+  // number variant shares the same refuse path — verify once.
   const home2 = tmpDir('tl-a6-n1b2-home-');
   const repo2 = tmpDir('tl-a6-n1b2-');
   gitInit(repo2);
   fs.mkdirSync(path.join(repo2, '.zcode'));
-  write(path.join(home2, '.zcode', 'cli', 'config.json'), '{ "hooks": 42 }');
-  const r2 = teamlore(['init', '--agents', 'zcode'], repo2, fakeHomeEnv(home2));
-  assert.strictEqual(r2.status, 0, r2.stdout + r2.stderr);
-  assert.ok(!read(path.join(home2, '.zcode', 'cli', 'config.json')).includes('42'),
-    'number hooks value also replaced (same path)');
+  const original2 = '{ "hooks": 42 }';
+  write(path.join(home2, '.zcode', 'cli', 'config.json'), original2);
+  const r3 = teamlore(['init', '--agents', 'zcode'], repo2, fakeHomeEnv(home2));
+  assert.strictEqual(r3.status, 1, 'number hooks value also refused');
+  assert.strictEqual(read(path.join(home2, '.zcode', 'cli', 'config.json')), original2,
+    'number value byte-identical (same path)');
 });
 
 test('N1c zcode: hooks.enabled = "true" (string) — preserved + warning, never flipped', () => {
@@ -790,7 +821,7 @@ test('N2a kimi: UTF-8 BOM config.toml — append preserves BOM bytes; remove res
   verdict('SAFE', 'N2a', 3, 'UTF-8 BOM survives append and remove byte-exactly.');
 });
 
-test('N2b kimi: non-UTF-8 (CP1256) config.toml is silently transcoded to U+FFFD by init — bytes never recoverable', () => {
+test('N2b kimi: non-UTF-8 (CP1256) config.toml is REFUSED before decode — bytes never transcoded, init exit 1, remove warns', () => {
   const home = tmpDir('tl-a6-n2b-home-');
   const repo = tmpDir('tl-a6-n2b-');
   gitInit(repo);
@@ -799,26 +830,23 @@ test('N2b kimi: non-UTF-8 (CP1256) config.toml is silently transcoded to U+FFFD 
   // "الس" in Windows-1256 + a valid TOML body.
   const cp1256 = Buffer.from([0xc7, 0xe1, 0xd3]);
   fs.mkdirSync(path.join(home, '.kimi-code'), { recursive: true });
-  fs.writeFileSync(tomlPath, Buffer.concat([cp1256, Buffer.from('\n[profile]\nname = "x"\n', 'utf8')]));
+  const originalBuf = Buffer.concat([cp1256, Buffer.from('\n[profile]\nname = "x"\n', 'utf8')]);
+  fs.writeFileSync(tomlPath, originalBuf);
 
   const r = teamlore(['init', '--agents', 'kimi'], repo, fakeHomeEnv(home));
-  assert.strictEqual(r.status, 0, 'init does not detect the invalid UTF-8');
-  const after = readBuf(tomlPath);
-  const mangled = !after.slice(0, 3).equals(cp1256);
-  if (mangled) {
-    verdict('CONFIRMED-EXPLOIT', 'N2b', 3,
-      'read-modify-write decodes as UTF-8: 0xC7 0xE1 0xD3 became U+FFFD sequences on init — ' +
-      'the user\'s bytes are destroyed and cannot be restored by remove. A UTF-8 validity ' +
-      'check (refuse + manual instructions) is the safe behavior.');
-  } else {
-    verdict('SAFE', 'N2b', 3, 'non-UTF-8 bytes preserved (behavior changed since finding)');
-  }
-  assert.ok(mangled, 'current behavior: non-UTF-8 transcoded (N2b)');
-  assert.ok(after.toString('utf8').includes('[[hooks]]'), 'stanza still appended');
+  assert.strictEqual(r.status, 1, 'init must refuse a config it cannot decode losslessly');
+  assert.ok(r.stdout.includes('!') && /not valid UTF-8/.test(r.stdout),
+    'refusal names UTF-8 with manual instructions: ' + r.stdout);
+  assert.ok(sameBytes(readBuf(tomlPath), originalBuf), 'file byte-identical — no U+FFFD transcoding');
 
   const r2 = teamlore(['remove'], repo, fakeHomeEnv(home));
-  assert.strictEqual(r2.status, 0, r2.stdout + r2.stderr);
-  assert.ok(!readBuf(tomlPath).toString('utf8').includes('teamlore'), 'stanza removed; Arabic stays mangled');
+  assert.strictEqual(r2.status, 0, 'remove warns and continues past the refusal');
+  assert.ok(r2.stdout.includes('!'), 'warning printed on remove too: ' + r2.stdout);
+  assert.ok(sameBytes(readBuf(tomlPath), originalBuf), 'still byte-identical after remove');
+  verdict('SAFE', 'N2b', 3,
+    'CP1256 config.toml: the UTF-8 validity gate (TextDecoder fatal) refuses before any ' +
+    'read-modify-write — init exits 1 with manual instructions, remove warns and continues, ' +
+    'the user\'s bytes survive exactly.');
 });
 
 test('N2c kimi: two teamlore stanzas separated by user stanzas — exactly the two go, everything else byte-exact', () => {
@@ -1066,22 +1094,24 @@ test('N4f distill-check with unknown --host and dangling --host: claude fallback
 // N5 — CLI --agents parsing
 // ==========================================================================
 
-test('N5a "--agents cursor --agents kimi" (flag twice): FIRST flag wins, kimi silently ignored', () => {
+test('N5a "--agents cursor --agents kimi" (flag twice): clear error, exit 1, zero artifacts', () => {
   const home = tmpDir('tl-a6-n5a-home-');
   const repo = tmpDir('tl-a6-n5a-');
   gitInit(repo);
   const env = fakeHomeEnv(home);
 
   const r = teamlore(['init', '--agents', 'cursor', '--agents', 'kimi'], repo, env);
-  assert.strictEqual(r.status, 0, r.stdout + r.stderr);
-  assert.ok(fs.existsSync(path.join(repo, '.cursor', 'hooks.json')), 'cursor installed');
-  assert.ok(!fs.existsSync(path.join(repo, '.kimi-code')), 'kimi project artifacts absent');
+  assert.strictEqual(r.status, 1, 'a repeated --agents flag must error, not silently drop a list');
+  assert.ok((r.stdout + r.stderr).includes('--agents given twice'),
+    'clear message: ' + r.stdout + r.stderr);
+  assert.ok(!fs.existsSync(path.join(repo, '.lore')), 'no artifacts created at all');
+  assert.ok(!fs.existsSync(path.join(repo, '.cursor')), 'cursor not installed');
+  assert.ok(!fs.existsSync(path.join(repo, '.kimi-code')), 'kimi not installed');
   assert.ok(!fs.existsSync(path.join(home, '.kimi-code', 'config.toml')),
-    'kimi machine-global wiring absent');
-  verdict('FINDING', 'N5a', 3,
-    'repeated --agents: bin takes the FIRST flag and silently drops the rest — the user asked ' +
-    'for kimi and got nothing, exit 0, no mention. Conventional CLI is last-flag-wins or an ' +
-    'error. No state corruption (kimi is cleanly absent), but the reported outcome is wrong.');
+    'no machine-global wiring either');
+  verdict('SAFE', 'N5a', 3,
+    'repeated --agents errors with exit 1 ("--agents given twice") instead of silently ' +
+    'dropping the second list — no partial installs, no misreported outcome.');
 });
 
 test('N5b/N5c/N5d/N5e --agents edge forms: equals form works; bad case/empty error cleanly; empty element tolerated', () => {
@@ -1206,30 +1236,30 @@ const exploits = verdicts.filter((v) => v.kind === 'CONFIRMED-EXPLOIT');
 const safes = verdicts.filter((v) => v.kind === 'SAFE').length;
 const findings = verdicts.filter((v) => v.kind === 'FINDING');
 console.log('');
-console.log('REMEDIATION-NEEDED (ordered by severity):');
-const remediation = [
-  'F1 (P2) marker-substring strip deletes foreign hooks; cursor "removable" deletes a whole user-authored hooks.json',
-  'F2 (P2) kimi stanza-level strip kills user keys/comments sharing the stanza -> key-level strip',
-  'F4a (P2) AGENTS.md strip ignores fenced code blocks -> deletes documented examples; init silently skips install',
-  'N1b (P3) zcode init silently replaces a non-object hooks value -> refuse-or-preserve + warning',
-  'N2b (P3) non-UTF-8 config.toml transcoded to U+FFFD on init -> UTF-8 validity check + refuse',
+console.log(
+  'probes: ' + verdicts.length + ' verdicts (' + exploits.length + ' confirmed-exploit, ' +
+    findings.length + ' findings, ' + safes + ' safe) — tests: ' + passed + ' passed, ' + failed + ' failed'
+);
+console.log('');
+console.log('REMEDIATED by A8 (converted to hard SAFE assertions above):');
+const remediated = [
+  'F1 (P2) strip ownership is anchored-script: foreign hooks mentioning the marker path survive remove (claude+zcode+cursor); cursor removable-path can no longer delete a user-authored hooks.json (also tightens v0.2.3)',
+  'F2 (P2) kimi key-level strip: comment mentions never count; user keys sharing a teamlore stanza survive with a warning row; ambiguous stanzas left untouched with manual instructions',
+  'F4a (P2) AGENTS.md markers inside fenced code blocks ignored by install+strip; real section appended at EOF; fenced content never rewritten',
+  'N1b (P3) zcode init refuses a non-object hooks value (exit 1, byte-identical); remove warns and leaves the file untouched',
+  'N2b (P3) non-UTF-8 config.toml refused before decode (init exit 1 / remove warns), bytes never transcoded',
+  'N5a (P3) repeated --agents flag errors with exit 1',
 ];
-for (const r of remediation) console.log('  - ' + r);
-console.log('ACCEPT-WITH-NOTE:');
+for (const r of remediated) console.log('  - ' + r);
+console.log('ACCEPT-WITH-NOTE (still probed, pinned as-is):');
 const accept = [
   'F3 (P3) whole-file JSON re-serialization: CRLF->LF, dup-key collapse, integer-key reorder (semantics preserved)',
   'F4b/F4c (P3) AGENTS.md seam whitespace normalization outside markers',
   'N1d (P3) cross-event exact-command dedupe suppresses canonical wiring (consistent with A4)',
   'N4e (P3) session-id sanitization collisions share dedupe state (benign direction)',
-  'N5a (P3) repeated --agents flag: first wins, rest silently dropped (no corruption)',
   'N7 (P3) .gitignore blank-line collapse on remove (semantics preserved)',
 ];
 for (const a of accept) console.log('  - ' + a);
-console.log('');
-console.log(
-  'probes: ' + verdicts.length + ' verdicts (' + exploits.length + ' confirmed-exploit, ' +
-    findings.length + ' findings, ' + safes + ' safe) — tests: ' + passed + ' passed, ' + failed + ' failed'
-);
 if (failed > 0) {
   process.exitCode = 1;
 }
