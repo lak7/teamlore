@@ -15,7 +15,7 @@ const path = require('path');
 
 // Suites in execution order; a suite is skipped (and marked as such) when its
 // file is absent, so the runner works while suites are still landing.
-const SUITES = ['unit-merge.js', 'hooks-matrix.js', 'e2e.js', 'adversarial.js'];
+const SUITES = ['unit-merge.js', 'hooks-matrix.js', 'e2e.js', 'adversarial.js', 'adversarial2.js'];
 
 const results = [];
 for (const suite of SUITES) {
