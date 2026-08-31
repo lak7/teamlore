@@ -11,7 +11,7 @@
  * Golden identity note (Commander ruling #7): the working tree is checked out
  * with core.autocrlf=true, so template-derived artifacts are compared
  * byte-exact against the working-tree template files (the actual install
- * source) and EOL-normalized against `git show HEAD:templates/...` (v0.2.3).
+ * source) and EOL-normalized against `git show <pinned v0.2.3 ref>:templates/...`.
  * recall.js / distill-check.js are owned by A2 and only checked for
  * existence here — their runtime behavior is covered by test/hooks-matrix.js.
  */
@@ -28,6 +28,20 @@ const TEMPLATES = path.join(REPO_ROOT, 'templates');
 
 const tmpRoots = [];
 let passed = 0;
+
+// v0.2.3 baseline for golden identity: pinned to the upstream commit this
+// branch forked from (comparing against HEAD would be vacuous once this
+// branch is committed). If the object is unavailable (shallow clone), the
+// v0.2.3-blob assertions degrade to a printed note instead of fake passes.
+const V023_REF = '75fa052';
+const HAS_V023 = (() => {
+  try {
+    execFileSync('git', ['cat-file', '-e', V023_REF + '^{commit}'], { cwd: REPO_ROOT, stdio: 'ignore' });
+    return true;
+  } catch (_) {
+    return false;
+  }
+})();
 
 function test(name, fn) {
   fn();
@@ -79,7 +93,7 @@ function teamlore(args, cwd, env) {
 }
 
 function gitShow(repoPath) {
-  return execFileSync('git', ['show', 'HEAD:' + repoPath], {
+  return execFileSync('git', ['show', (HAS_V023 ? V023_REF : 'HEAD') + ':' + repoPath], {
     cwd: REPO_ROOT,
     encoding: 'utf8',
     maxBuffer: 10 * 1024 * 1024,
@@ -108,10 +122,14 @@ function assertGoldenArtifact(installedPath, templateRel) {
     read(path.join(TEMPLATES, templateRel)),
     templateRel + ' must be byte-identical to the working-tree template'
   );
+  if (!HAS_V023) {
+    console.log('    note: pinned v0.2.3 ref unavailable — ' + templateRel + ' compared vs working-tree template only');
+    return;
+  }
   assert.strictEqual(
     normalizeEol(installed),
     normalizeEol(gitShow('templates/' + templateRel)),
-    templateRel + ' must match v0.2.3 (git HEAD) content'
+    templateRel + ' must match v0.2.3 (' + V023_REF + ') content'
   );
 }
 

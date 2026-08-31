@@ -12,7 +12,7 @@
  *   - kimi    {UserPromptSubmit, prompt}                 -> plain text (no JSON);
  *             {SessionStart}                             -> silent (not wired)
  *   - all hosts: no .lore -> silent exit 0; malformed JSON -> silent exit 0
- *   - T-2.7 claude byte-identity: v0.2.3 scripts (git show HEAD:) vs working tree
+ *   - T-2.7 claude byte-identity: v0.2.3 scripts (git show pinned V023_REF) vs working tree
  *     on identical fixtures — byte-equal stdout + equal exit codes
  *   - T-2.8 per-session dedupe: repeat prompts stay silent
  *   - T-3 OpenCode plugin: dynamic-import a tmp .mjs copy with stubbed context
@@ -33,6 +33,21 @@ const RECALL = path.join(REPO, 'templates', 'skill', 'scripts', 'recall.js');
 const DISTILL = path.join(REPO, 'templates', 'skill', 'scripts', 'distill-check.js');
 const PLUGIN = path.join(REPO, 'templates', 'opencode', 'teamlore.js');
 const HEAD = execSync('git rev-parse HEAD', { cwd: REPO, encoding: 'utf8' }).trim();
+
+// v0.2.3 baseline for the T-2.7 byte-identity regression: pinned to the
+// upstream commit this branch forked from. Comparing against HEAD would be
+// vacuous once this branch is committed, so when the pinned object is not
+// available (e.g. a shallow clone) the section SKIPS instead of passing
+// without proving anything.
+const V023_REF = '75fa052';
+const HAS_V023 = (() => {
+  try {
+    execSync('git cat-file -e ' + V023_REF + '^{commit}', { cwd: REPO, stdio: 'ignore' });
+    return true;
+  } catch (_) {
+    return false;
+  }
+})();
 
 const LORE_NAME = '2026-01-01-webhook-idempotency.md';
 const LORE_CONTENT = [
@@ -394,14 +409,18 @@ async function main() {
   });
 
   // ---- T-2.7 claude byte-identity regression -------------------------------
-  await sectionAsync('T-2.7 claude runtime byte-identity vs v0.2.3 (HEAD ' + HEAD.slice(0, 9) + ')', async () => {
+  await sectionAsync('T-2.7 claude runtime byte-identity vs v0.2.3 (ref ' + V023_REF + ')', async () => {
+    if (!HAS_V023) {
+      console.log('SKIP: pinned v0.2.3 ref ' + V023_REF + ' not present (shallow clone?) — byte-identity not re-proven here');
+      return;
+    }
     const v023Dir = fs.mkdtempSync(path.join(os.tmpdir(), 'teamlore-v023-'));
     const oldRecall = path.join(v023Dir, 'recall.js');
     const oldDistill = path.join(v023Dir, 'distill-check.js');
     fs.writeFileSync(oldRecall,
-      execSync('git show HEAD:templates/skill/scripts/recall.js', { cwd: REPO, encoding: 'buffer' }));
+      execSync('git show ' + V023_REF + ':templates/skill/scripts/recall.js', { cwd: REPO, encoding: 'buffer' }));
     fs.writeFileSync(oldDistill,
-      execSync('git show HEAD:templates/skill/scripts/distill-check.js', { cwd: REPO, encoding: 'buffer' }));
+      execSync('git show ' + V023_REF + ':templates/skill/scripts/distill-check.js', { cwd: REPO, encoding: 'buffer' }));
     assert.ok(fs.readFileSync(oldRecall).includes('hookSpecificOutput'), 'v0.2.3 fixture extracted');
 
     // Dedicated repos: mutations (sentinel clear, git add) here must not leak
