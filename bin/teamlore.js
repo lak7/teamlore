@@ -26,6 +26,7 @@ function help() {
   line(ui.banner(version()));
   line('  ' + bold('Usage'));
   cmdRow('npx teamlore init', 'Install the skill, hooks & .lore/ in this repo');
+  line('    ' + cyan(padEnd('npx teamlore init --agents <ids>', 33)) + dim('Target hosts: claude,cursor,zcode,kimi,opencode | all'));
   cmdRow('npx teamlore remove', 'Uninstall (keeps .lore/; --purge deletes it too)');
   cmdRow('npx teamlore scarmap', 'See .lore/ as a living scar map (--root <dir> to target another repo)');
   cmdRow('npx teamlore --help', 'Show this help');
@@ -67,7 +68,16 @@ async function main() {
     switch (cmd) {
       case 'init': {
         const { run } = require('../lib/init');
-        process.exitCode = run(process.cwd());
+        const args = process.argv.slice(3);
+        const eq = args.find((a) => a.startsWith('--agents='));
+        const flagIdx = args.indexOf('--agents');
+        let agents;
+        if (eq) agents = eq.slice('--agents='.length);
+        else if (flagIdx >= 0) {
+          const next = args[flagIdx + 1];
+          agents = next && !next.startsWith('--') ? next : '';
+        }
+        process.exitCode = run(process.cwd(), { agents });
         return;
       }
       case 'remove':
