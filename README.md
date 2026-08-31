@@ -136,9 +136,9 @@ comments are never touched.
 |---|---|---|---|---|
 | Claude Code | `.claude/skills/teamlore/` · hooks in `.claude/settings.json` | — | injected at session start and on every prompt; Stop gate nudges distill | `verified (script-level)` · live-app untested on CI |
 | Cursor | shares `.claude/skills/teamlore/` · hooks in `.cursor/hooks.json` · rule `.cursor/rules/teamlore.mdc` | — | injected at session start; the always-apply rule + `AGENTS.md` cover the rest | `verified (script-level)` · best-effort — live-app untested |
-| ZCode | `.zcode/skills/teamlore/` | `~/.zcode/skills/teamlore/` · hooks in `~/.zcode/cli/config.json` | injected at session start and on every prompt (user-level hooks fire in every repo; silenced without `.lore/`) | `verified (script-level)` · best-effort — live-app untested |
-| Kimi Code | `.kimi-code/skills/teamlore/` | `~/.kimi-code/skills/teamlore/` · hook in `~/.kimi-code/config.toml` | injected on every prompt — Kimi cannot inject at session start | `verified (script-level)` · best-effort — live-app untested |
-| OpenCode | `.opencode/plugins/teamlore.js` · shares `.claude/skills/teamlore/` | — | in-process plugin: session digest on your first message, then recall on every prompt | `verified (script-level)` · best-effort — live-app untested |
+| ZCode | `.zcode/skills/teamlore/` | `~/.zcode/skills/teamlore/` · hooks in `~/.zcode/cli/config.json` | injected at session start and on every prompt (user-level hooks fire in every repo; silenced without `.lore/`) | `verified (script-level)` · best-effort — live config-write + hook-command verified; session-level unobserved |
+| Kimi Code | `.kimi-code/skills/teamlore/` | `~/.kimi-code/skills/teamlore/` · hook in `~/.kimi-code/config.toml` | injected on every prompt — Kimi cannot inject at session start | `verified (script-level)` · best-effort — live TOML merge (byte-exact restore) + hook-command verified; session-level untested |
+| OpenCode | `.opencode/plugins/teamlore.js` · shares `.claude/skills/teamlore/` | — | in-process plugin: session digest on your first message, then recall on every prompt | `verified (script-level)` · best-effort — live boot clean; plugin execution unverified (needs provider auth) |
 
 Selecting any non-Claude host also adds a marker-guarded section to
 `AGENTS.md` — the universal fallback every host can read.
