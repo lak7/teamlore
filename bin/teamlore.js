@@ -26,7 +26,7 @@ function help() {
   line(ui.banner(version()));
   line('  ' + bold('Usage'));
   cmdRow('npx teamlore init', 'Install the skill, hooks & .lore/ in this repo');
-  line('    ' + cyan(padEnd('npx teamlore init --agents <ids>', 33)) + dim('Target hosts: claude,cursor,zcode,kimi,opencode | all'));
+  line('    ' + cyan(padEnd('npx teamlore init --agents <ids>', 33)) + dim('Multi-host install: claude,cursor,zcode,kimi,opencode | all'));
   cmdRow('npx teamlore remove', 'Uninstall (keeps .lore/; --purge deletes it too)');
   cmdRow('npx teamlore scarmap', 'See .lore/ as a living scar map (--root <dir> to target another repo)');
   cmdRow('npx teamlore --help', 'Show this help');
